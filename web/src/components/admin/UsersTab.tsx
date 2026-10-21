@@ -6,6 +6,8 @@ import { api, APIError } from '../../api';
 import type { User, UserDecayConfig } from '../../types';
 import { Avatar, Icon, resolveSkin, type PersonColor, type Skin } from '../../design';
 import LinkedAccountsModal from '../LinkedAccounts/LinkedAccountsModal';
+import ConfirmModal from '../ConfirmModal/ConfirmModal';
+import { useAuth } from '../../AuthContext';
 import { ColorPicker, SkinPicker, personColor } from './pickers';
 import ui from './ui.module.css';
 import styles from './UsersTab.module.css';
@@ -205,11 +207,13 @@ const UserForm: React.FC<{
 
 export const UsersTab: React.FC = () => {
   const { t } = useTranslation();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [expandedDecay, setExpandedDecay] = useState<number | null>(null);
   const [accountsFor, setAccountsFor] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [listError, setListError] = useState('');
 
   const load = useCallback(async () => {
@@ -219,14 +223,17 @@ export const UsersTab: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = async (user: User) => {
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
     setListError('');
     try {
-      await api.users.delete(user.id);
+      await api.users.delete(userToDelete.id);
+      setUserToDelete(null);
+      load();
     } catch (err) {
       setListError(err instanceof APIError ? err.message : String(err));
+      throw err;
     }
-    load();
   };
 
   const handleTogglePause = async (user: User) => {
@@ -294,100 +301,126 @@ export const UsersTab: React.FC = () => {
       )}
 
       <div className={ui.list}>
-        {users.map(u => {
-          const color = personColor(u);
-          const skin = resolveSkin(u.theme, u.age);
-          return (
-            <div key={u.id} className={styles.item}>
-              <div className={clsx(ui.row, ui.rowWrap, u.paused && ui.rowMuted)}>
-                <Avatar name={u.name} color={color} size="md" />
-                <div className={ui.rowMain}>
-                  <span className={ui.rowTitle}>{u.name}</span>
-                  <span className={ui.rowMeta}>
-                    <span className={ui.badge}>
-                      {u.role === 'admin' ? t('admin.usersTab.roleAdmin') : t('admin.usersTab.roleChild')}
+        {(() => {
+          const adminCount = users.filter(u => u.role === 'admin').length;
+          return users.map(u => {
+            const color = personColor(u);
+            const skin = resolveSkin(u.theme, u.age);
+            const isSelf = currentUser?.id === u.id;
+            const isLastAdmin = u.role === 'admin' && adminCount <= 1;
+            const cannotDelete = isSelf || isLastAdmin;
+            const deleteTitle = isSelf
+              ? t('admin.usersTab.cannotDeleteSelf')
+              : isLastAdmin
+              ? t('admin.usersTab.cannotDeleteLastAdmin')
+              : t('admin.usersTab.deleteUserAriaLabel');
+
+            return (
+              <div key={u.id} className={styles.item}>
+                <div className={clsx(ui.row, ui.rowWrap, u.paused && ui.rowMuted)}>
+                  <Avatar name={u.name} color={color} size="md" />
+                  <div className={ui.rowMain}>
+                    <span className={ui.rowTitle}>{u.name}</span>
+                    <span className={ui.rowMeta}>
+                      <span className={ui.badge}>
+                        {u.role === 'admin' ? t('admin.usersTab.roleAdmin') : t('admin.usersTab.roleChild')}
+                      </span>
+                      {u.paused && <span className={ui.badgeOutline}>{t('admin.usersTab.badgePaused')}</span>}
+                      {u.has_pin && <span className={ui.badgeOutline}><Icon name="lock" /> {t('admin.usersTab.badgePin')}</span>}
+                      {u.auth_providers.length > 0 && (
+                        <span className={ui.badgeOutline}>{t('admin.usersTab.badgeLinked', { count: u.auth_providers.length })}</span>
+                      )}
+                      {u.age ? <span>{t('admin.usersTab.ageDisplay', { age: u.age })}</span> : null}
+                      <span>{t('admin.usersTab.skinDisplay', { skin: t(`admin.skins.${skin}.name`) })}</span>
                     </span>
-                    {u.paused && <span className={ui.badgeOutline}>{t('admin.usersTab.badgePaused')}</span>}
-                    {u.has_pin && <span className={ui.badgeOutline}><Icon name="lock" /> {t('admin.usersTab.badgePin')}</span>}
-                    {u.auth_providers.length > 0 && (
-                      <span className={ui.badgeOutline}>{t('admin.usersTab.badgeLinked', { count: u.auth_providers.length })}</span>
+                  </div>
+                  <div className={clsx(ui.rowActions, styles.actions)}>
+                    {u.has_pin && (
+                      <button
+                        type="button"
+                        className={ui.iconBtn}
+                        onClick={() => handleClearPin(u)}
+                        title={t('admin.usersTab.resetPinTitle')}
+                        aria-label={t('admin.usersTab.resetPinTitle')}
+                      >
+                        <KeyRound aria-hidden />
+                      </button>
                     )}
-                    {u.age ? <span>{t('admin.usersTab.ageDisplay', { age: u.age })}</span> : null}
-                    <span>{t('admin.usersTab.skinDisplay', { skin: t(`admin.skins.${skin}.name`) })}</span>
-                  </span>
-                </div>
-                <div className={clsx(ui.rowActions, styles.actions)}>
-                  {u.has_pin && (
+                    {u.auth_providers.length > 0 && (
+                      <button
+                        type="button"
+                        className={ui.iconBtn}
+                        onClick={() => setAccountsFor(u)}
+                        title={t('admin.usersTab.linkedAccountsTitle')}
+                        aria-label={t('admin.usersTab.linkedAccountsTitle')}
+                      >
+                        <Link2 aria-hidden />
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={ui.iconBtn}
-                      onClick={() => handleClearPin(u)}
-                      title={t('admin.usersTab.resetPinTitle')}
-                      aria-label={t('admin.usersTab.resetPinTitle')}
+                      aria-pressed={u.paused}
+                      onClick={() => handleTogglePause(u)}
+                      title={u.paused ? t('admin.usersTab.unpauseTitle') : t('admin.usersTab.pauseTitle')}
+                      aria-label={u.paused ? t('admin.usersTab.unpauseAriaLabel') : t('admin.usersTab.pauseAriaLabel')}
                     >
-                      <KeyRound aria-hidden />
+                      {u.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
                     </button>
-                  )}
-                  {u.auth_providers.length > 0 && (
                     <button
                       type="button"
                       className={ui.iconBtn}
-                      onClick={() => setAccountsFor(u)}
-                      title={t('admin.usersTab.linkedAccountsTitle')}
-                      aria-label={t('admin.usersTab.linkedAccountsTitle')}
+                      aria-expanded={expandedDecay === u.id}
+                      onClick={() => setExpandedDecay(expandedDecay === u.id ? null : u.id)}
+                      title={t('admin.usersTab.decaySettingsTitle')}
+                      aria-label={t('admin.usersTab.decaySettingsTitle')}
                     >
-                      <Link2 aria-hidden />
+                      <TrendingDown aria-hidden />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className={ui.iconBtn}
-                    aria-pressed={u.paused}
-                    onClick={() => handleTogglePause(u)}
-                    title={u.paused ? t('admin.usersTab.unpauseTitle') : t('admin.usersTab.pauseTitle')}
-                    aria-label={u.paused ? t('admin.usersTab.unpauseAriaLabel') : t('admin.usersTab.pauseAriaLabel')}
-                  >
-                    {u.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
-                  </button>
-                  <button
-                    type="button"
-                    className={ui.iconBtn}
-                    aria-expanded={expandedDecay === u.id}
-                    onClick={() => setExpandedDecay(expandedDecay === u.id ? null : u.id)}
-                    title={t('admin.usersTab.decaySettingsTitle')}
-                    aria-label={t('admin.usersTab.decaySettingsTitle')}
-                  >
-                    <TrendingDown aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className={ui.iconBtn}
-                    title={t('admin.usersTab.editUserAriaLabel')}
-                    aria-label={t('admin.usersTab.editUserAriaLabel')}
-                    onClick={() => { setEditingUser(u); setShowForm(true); window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }}
-                  >
-                    <Pencil aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className={clsx(ui.iconBtn, ui.iconBtnDanger)}
-                    title={t('admin.usersTab.deleteUserAriaLabel')}
-                    aria-label={t('admin.usersTab.deleteUserAriaLabel')}
-                    onClick={() => handleDelete(u)}
-                  >
-                    <Trash2 aria-hidden />
-                  </button>
+                    <button
+                      type="button"
+                      className={ui.iconBtn}
+                      title={t('admin.usersTab.editUserAriaLabel')}
+                      aria-label={t('admin.usersTab.editUserAriaLabel')}
+                      onClick={() => { setEditingUser(u); setShowForm(true); window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }}
+                    >
+                      <Pencil aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className={clsx(ui.iconBtn, ui.iconBtnDanger)}
+                      title={deleteTitle}
+                      aria-label={deleteTitle}
+                      disabled={cannotDelete}
+                      onClick={() => setUserToDelete(u)}
+                    >
+                      <Trash2 aria-hidden />
+                    </button>
+                  </div>
                 </div>
+                {expandedDecay === u.id && (
+                  <div className={styles.decay}>
+                    <DecayConfigEditor userId={u.id} />
+                  </div>
+                )}
               </div>
-              {expandedDecay === u.id && (
-                <div className={styles.decay}>
-                  <DecayConfigEditor userId={u.id} />
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+          });
+        })()}
       </div>
+
+      {userToDelete && (
+        <ConfirmModal
+          isOpen={!!userToDelete}
+          title={t('admin.usersTab.deleteConfirmTitle')}
+          message={t('admin.usersTab.deleteConfirmMessage', { name: userToDelete.name })}
+          confirmLabel={t('admin.usersTab.deleteConfirmBtn')}
+          cancelLabel={t('common.cancel', { defaultValue: '取消' })}
+          isDanger={true}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setUserToDelete(null)}
+        />
+      )}
     </div>
   );
 };
