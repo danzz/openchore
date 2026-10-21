@@ -16,6 +16,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -27,6 +28,7 @@ body {
   color-scheme: var(--color-scheme, light);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-x: none;
 }
 
 button {

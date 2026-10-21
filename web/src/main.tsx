@@ -7,6 +7,9 @@ import { ThemeProvider } from './ThemeContext';
 import './styles/globals.css';
 import './design';
 import './i18n';
+import { initEdgeSwipePrevention } from './preventEdgeSwipe';
+
+initEdgeSwipePrevention();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
