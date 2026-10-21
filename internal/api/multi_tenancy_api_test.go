@@ -321,6 +321,26 @@ func TestHouseholdRewardsIsolation(t *testing.T) {
 		"label":        "7-day bonus for B",
 	}, headersB)
 
+	// Household B should also be able to create a 3-day milestone without conflict with Household A
+	respB3 := env.request(t, http.MethodPost, "/api/admin/streak-rewards", map[string]any{
+		"streak_days":  3,
+		"bonus_points": 25,
+		"label":        "3-day bonus for B",
+	}, headersB)
+	if respB3.StatusCode != http.StatusCreated {
+		t.Fatalf("Household B should be able to create 3-day milestone even if Household A already has one, got status %d", respB3.StatusCode)
+	}
+
+	// Creating duplicate milestone in Household B should return 409 Conflict
+	respBDup := env.request(t, http.MethodPost, "/api/admin/streak-rewards", map[string]any{
+		"streak_days":  3,
+		"bonus_points": 30,
+		"label":        "duplicate 3-day bonus for B",
+	}, headersB)
+	if respBDup.StatusCode != http.StatusConflict {
+		t.Fatalf("Duplicate milestone for same days in same household should return 409 Conflict, got status %d", respBDup.StatusCode)
+	}
+
 	var streaksA []struct {
 		Label string `json:"label"`
 	}
@@ -335,8 +355,8 @@ func TestHouseholdRewardsIsolation(t *testing.T) {
 	}
 	streaksBResp := env.request(t, http.MethodGet, "/api/admin/streak-rewards", nil, headersB)
 	decodeBody(t, streaksBResp, &streaksB)
-	if len(streaksB) != 1 || streaksB[0].Label != "7-day bonus for B" {
-		t.Fatalf("Household B should only see its own streak rewards, got %+v", streaksB)
+	if len(streaksB) != 2 {
+		t.Fatalf("Household B should see its 2 streak rewards, got %+v", streaksB)
 	}
 }
 

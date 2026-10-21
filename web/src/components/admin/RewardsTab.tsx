@@ -109,10 +109,12 @@ const RewardForm: React.FC<{
   const [stock, setStock] = useState(reward?.stock?.toString() || '');
   const [shareable, setShareable] = useState(reward?.shareable ?? false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       const data = {
         name,
@@ -129,10 +131,12 @@ const RewardForm: React.FC<{
         await api.rewards.create(data);
       }
       onSave();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError(err?.message || 'Failed to save reward');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (
@@ -141,6 +145,7 @@ const RewardForm: React.FC<{
         <h3 className={ui.sectionTitle}>{reward ? t('admin.rewardsTab.editRewardTitle') : t('admin.rewardsTab.newRewardTitle')}</h3>
         <button type="button" className={ui.iconBtn} onClick={onCancel} aria-label={t('admin.rewardsTab.cancel')}><X aria-hidden /></button>
       </div>
+      {error && <p className={ui.msgError} role="alert">{error}</p>}
 
       <label className={ui.field}>
         <span className={ui.label}>{t('admin.rewardsTab.fieldName')}</span>
@@ -186,10 +191,12 @@ const StreakRewardForm: React.FC<{ onSave: () => void; onCancel: () => void }> =
   const [points, setPoints] = useState('25');
   const [label, setLabel] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       await api.streaks.createReward({
         streak_days: parseInt(days) || 0,
@@ -197,14 +204,17 @@ const StreakRewardForm: React.FC<{ onSave: () => void; onCancel: () => void }> =
         label: label || `${days}-Day Streak!`,
       });
       onSave();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError(err?.message || 'Failed to save milestone');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (
     <form className={clsx(ui.card, ui.formGrid)} onSubmit={handleSubmit}>
+      {error && <p className={ui.msgError} role="alert">{error}</p>}
       <div className={ui.formRow}>
         <label className={ui.field}>
           <span className={ui.label}>{t('admin.rewardsTab.streakFieldDays')}</span>

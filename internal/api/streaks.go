@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/liftedkilt/openchore/internal/model"
 	"github.com/liftedkilt/openchore/internal/store"
@@ -26,7 +27,12 @@ func (h *StreakHandler) GetUserStreak(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to get streak")
 		return
 	}
-	rewards, err := h.store.ListStreakRewards(r.Context())
+	user, err := h.store.GetUser(r.Context(), userID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	rewards, err := h.store.ListStreakRewardsByHousehold(r.Context(), user.HouseholdID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get streak rewards")
 		return
@@ -101,6 +107,10 @@ func (h *StreakHandler) CreateReward(w http.ResponseWriter, r *http.Request) {
 		Label:       req.Label,
 	}
 	if err := h.store.CreateStreakReward(r.Context(), reward); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			writeError(w, http.StatusConflict, "a streak milestone for this number of days already exists")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "failed to create streak reward")
 		return
 	}
