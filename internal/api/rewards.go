@@ -31,7 +31,8 @@ func (h *RewardHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *RewardHandler) ListAll(w http.ResponseWriter, r *http.Request) {
-	rewards, err := h.store.ListRewardsWithAssignments(r.Context())
+	householdID := HouseholdIDFromContext(r.Context())
+	rewards, err := h.store.ListRewardsWithAssignmentsByHousehold(r.Context(), householdID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list rewards")
 		return
@@ -61,6 +62,7 @@ func (h *RewardHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	user := UserFromContext(r.Context())
 	reward := &model.Reward{
+		HouseholdID: HouseholdIDFromContext(r.Context()),
 		Name:        req.Name,
 		Description: req.Description,
 		Icon:        req.Icon,
@@ -83,8 +85,9 @@ func (h *RewardHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid reward id")
 		return
 	}
+	householdID := HouseholdIDFromContext(r.Context())
 	existing, err := h.store.GetReward(r.Context(), id)
-	if err != nil || existing == nil {
+	if err != nil || existing == nil || existing.HouseholdID != householdID {
 		writeError(w, http.StatusNotFound, "reward not found")
 		return
 	}
@@ -135,6 +138,12 @@ func (h *RewardHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid reward id")
 		return
 	}
+	householdID := HouseholdIDFromContext(r.Context())
+	existing, err := h.store.GetReward(r.Context(), id)
+	if err != nil || existing == nil || existing.HouseholdID != householdID {
+		writeError(w, http.StatusNotFound, "reward not found")
+		return
+	}
 	if err := h.store.DeleteReward(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete reward")
 		return
@@ -146,6 +155,12 @@ func (h *RewardHandler) SetAssignments(w http.ResponseWriter, r *http.Request) {
 	rewardID, err := urlParamInt64(r, "id")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid reward id")
+		return
+	}
+	householdID := HouseholdIDFromContext(r.Context())
+	existing, err := h.store.GetReward(r.Context(), rewardID)
+	if err != nil || existing == nil || existing.HouseholdID != householdID {
+		writeError(w, http.StatusNotFound, "reward not found")
 		return
 	}
 	var req struct {

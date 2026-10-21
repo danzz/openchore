@@ -481,6 +481,14 @@ export const ProfileSelection: React.FC = () => {
             <Icon name="screen" />
             {t('entry.picker.wallDisplay')}
           </button>
+          <button type="button" className={styles.wall} onClick={() => navigate('/kiosk/pair')}>
+            <Icon name="screen" />
+            配对平板
+          </button>
+          <button type="button" className={styles.wall} onClick={() => navigate('/account/auth')}>
+            <Icon name="home" />
+            家长登录 / 新建家庭
+          </button>
         </footer>
       </div>
     </HouseScope>

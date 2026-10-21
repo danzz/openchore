@@ -44,7 +44,8 @@ func (h *ChoreHandler) WaitForReviews() {
 }
 
 func (h *ChoreHandler) List(w http.ResponseWriter, r *http.Request) {
-	chores, err := h.store.ListChores(r.Context())
+	householdID := HouseholdIDFromContext(r.Context())
+	chores, err := h.store.ListChoresByHousehold(r.Context(), householdID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list chores")
 		return
@@ -118,6 +119,7 @@ func (h *ChoreHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	user := UserFromContext(r.Context())
 	chore := &model.Chore{
+		HouseholdID:        HouseholdIDFromContext(r.Context()),
 		Title:              req.Title,
 		Description:        req.Description,
 		Category:           req.Category,

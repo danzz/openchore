@@ -40,8 +40,11 @@ func New(db *sql.DB) *Store {
 // CreateUser inserts a user. A user without a colour gets the next free
 // person colour in the household (see model.NextPersonColor).
 func (s *Store) CreateUser(ctx context.Context, u *model.User) error {
+	if u.HouseholdID == 0 {
+		u.HouseholdID = 1
+	}
 	if u.Color == "" {
-		used, err := s.listUserColors(ctx)
+		used, err := s.listUserColors(ctx, u.HouseholdID)
 		if err != nil {
 			return err
 		}
@@ -49,8 +52,8 @@ func (s *Store) CreateUser(ctx context.Context, u *model.User) error {
 	}
 	paused := boolToInt(u.Paused)
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO users (name, avatar_url, role, age, theme, line_color, color, paused, pin_hash, pin_length) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.Name, u.AvatarURL, u.Role, u.Age, u.Theme, u.LineColor, u.Color, paused, u.PinHash, u.PinLength)
+		`INSERT INTO users (household_id, account_id, name, avatar_url, role, age, theme, line_color, color, paused, pin_hash, pin_length) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.HouseholdID, u.AccountID, u.Name, u.AvatarURL, u.Role, u.Age, u.Theme, u.LineColor, u.Color, paused, u.PinHash, u.PinLength)
 	if err != nil {
 		return err
 	}
@@ -62,9 +65,12 @@ func (s *Store) CreateUser(ctx context.Context, u *model.User) error {
 	return nil
 }
 
-// listUserColors returns every user's colour (empty ones skipped).
-func (s *Store) listUserColors(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT color FROM users WHERE color != ''`)
+// listUserColors returns every user's colour in the given household (empty ones skipped).
+func (s *Store) listUserColors(ctx context.Context, householdID int64) ([]string, error) {
+	if householdID == 0 {
+		householdID = 1
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT color FROM users WHERE household_id = ? AND color != ''`, householdID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +90,8 @@ func (s *Store) GetUser(ctx context.Context, id int64) (*model.User, error) {
 	u := &model.User{}
 	var paused int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, name, avatar_url, role, age, theme, line_color, color, paused, pin_hash, pin_length, session_version, created_at FROM users WHERE id = ?`, id).
-		Scan(&u.ID, &u.Name, &u.AvatarURL, &u.Role, &u.Age, &u.Theme, &u.LineColor, &u.Color, &paused, &u.PinHash, &u.PinLength, &u.SessionVersion, &u.CreatedAt)
+		`SELECT id, household_id, account_id, name, avatar_url, role, age, theme, line_color, color, paused, pin_hash, pin_length, session_version, created_at FROM users WHERE id = ?`, id).
+		Scan(&u.ID, &u.HouseholdID, &u.AccountID, &u.Name, &u.AvatarURL, &u.Role, &u.Age, &u.Theme, &u.LineColor, &u.Color, &paused, &u.PinHash, &u.PinLength, &u.SessionVersion, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -112,7 +118,7 @@ func (s *Store) GetUser(ctx context.Context, id int64) (*model.User, error) {
 
 func (s *Store) ListUsers(ctx context.Context) ([]model.User, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, avatar_url, role, age, theme, line_color, color, paused, pin_hash, pin_length, session_version, created_at FROM users ORDER BY name`)
+		`SELECT id, household_id, account_id, name, avatar_url, role, age, theme, line_color, color, paused, pin_hash, pin_length, session_version, created_at FROM users ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +126,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]model.User, error) {
 	for rows.Next() {
 		var u model.User
 		var paused int
-		if err := rows.Scan(&u.ID, &u.Name, &u.AvatarURL, &u.Role, &u.Age, &u.Theme, &u.LineColor, &u.Color, &paused, &u.PinHash, &u.PinLength, &u.SessionVersion, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.HouseholdID, &u.AccountID, &u.Name, &u.AvatarURL, &u.Role, &u.Age, &u.Theme, &u.LineColor, &u.Color, &paused, &u.PinHash, &u.PinLength, &u.SessionVersion, &u.CreatedAt); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -353,6 +359,9 @@ func (s *Store) CountIdentitiesByProvider(ctx context.Context) (map[string]int, 
 // --- Chores ---
 
 func (s *Store) CreateChore(ctx context.Context, c *model.Chore) error {
+	if c.HouseholdID == 0 {
+		c.HouseholdID = 1
+	}
 	requiresApproval := boolToInt(c.RequiresApproval)
 	requiresPhoto := boolToInt(c.RequiresPhoto)
 	photoSource := c.PhotoSource
@@ -360,9 +369,9 @@ func (s *Store) CreateChore(ctx context.Context, c *model.Chore) error {
 		photoSource = model.PhotoSourceChild
 	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO chores (title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.Title, c.Description, c.Category, c.Icon, c.PointsValue, c.MissedPenaltyValue, c.EstimatedMinutes, requiresApproval, requiresPhoto, photoSource, c.Source, c.ExternalID, c.TTSAudioURL, c.CreatedBy)
+		`INSERT INTO chores (household_id, title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.HouseholdID, c.Title, c.Description, c.Category, c.Icon, c.PointsValue, c.MissedPenaltyValue, c.EstimatedMinutes, requiresApproval, requiresPhoto, photoSource, c.Source, c.ExternalID, c.TTSAudioURL, c.CreatedBy)
 	if err != nil {
 		return err
 	}
@@ -374,9 +383,9 @@ func (s *Store) GetChore(ctx context.Context, id int64) (*model.Chore, error) {
 	c := &model.Chore{}
 	var reqApp, reqPho int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by, created_at
+		`SELECT id, household_id, title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by, created_at
 		 FROM chores WHERE id = ?`, id).
-		Scan(&c.ID, &c.Title, &c.Description, &c.Category, &c.Icon, &c.PointsValue, &c.MissedPenaltyValue, &c.EstimatedMinutes, &reqApp, &reqPho, &c.PhotoSource, &c.Source, &c.ExternalID, &c.TTSAudioURL, &c.CreatedBy, &c.CreatedAt)
+		Scan(&c.ID, &c.HouseholdID, &c.Title, &c.Description, &c.Category, &c.Icon, &c.PointsValue, &c.MissedPenaltyValue, &c.EstimatedMinutes, &reqApp, &reqPho, &c.PhotoSource, &c.Source, &c.ExternalID, &c.TTSAudioURL, &c.CreatedBy, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -387,7 +396,7 @@ func (s *Store) GetChore(ctx context.Context, id int64) (*model.Chore, error) {
 
 func (s *Store) ListChores(ctx context.Context) ([]model.Chore, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by, created_at
+		`SELECT id, household_id, title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by, created_at
 		 FROM chores ORDER BY title`)
 	if err != nil {
 		return nil, err
@@ -397,7 +406,29 @@ func (s *Store) ListChores(ctx context.Context) ([]model.Chore, error) {
 	for rows.Next() {
 		var c model.Chore
 		var reqApp, reqPho int
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.Category, &c.Icon, &c.PointsValue, &c.MissedPenaltyValue, &c.EstimatedMinutes, &reqApp, &reqPho, &c.PhotoSource, &c.Source, &c.ExternalID, &c.TTSAudioURL, &c.CreatedBy, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.HouseholdID, &c.Title, &c.Description, &c.Category, &c.Icon, &c.PointsValue, &c.MissedPenaltyValue, &c.EstimatedMinutes, &reqApp, &reqPho, &c.PhotoSource, &c.Source, &c.ExternalID, &c.TTSAudioURL, &c.CreatedBy, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		c.RequiresApproval = reqApp == 1
+		c.RequiresPhoto = reqPho == 1
+		chores = append(chores, c)
+	}
+	return chores, rows.Err()
+}
+
+func (s *Store) ListChoresByHousehold(ctx context.Context, householdID int64) ([]model.Chore, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, household_id, title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by, created_at
+		 FROM chores WHERE household_id = ? ORDER BY title`, householdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var chores []model.Chore
+	for rows.Next() {
+		var c model.Chore
+		var reqApp, reqPho int
+		if err := rows.Scan(&c.ID, &c.HouseholdID, &c.Title, &c.Description, &c.Category, &c.Icon, &c.PointsValue, &c.MissedPenaltyValue, &c.EstimatedMinutes, &reqApp, &reqPho, &c.PhotoSource, &c.Source, &c.ExternalID, &c.TTSAudioURL, &c.CreatedBy, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		c.RequiresApproval = reqApp == 1
@@ -1363,10 +1394,13 @@ func (s *Store) AdminAdjustPoints(ctx context.Context, userID int64, amount int,
 // --- Rewards ---
 
 func (s *Store) CreateReward(ctx context.Context, r *model.Reward) error {
+	if r.HouseholdID == 0 {
+		r.HouseholdID = 1
+	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO rewards (name, description, icon, cost, stock, active, shareable, created_by)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Name, r.Description, r.Icon, r.Cost, r.Stock, r.Active, boolToInt(r.Shareable), r.CreatedBy)
+		`INSERT INTO rewards (household_id, name, description, icon, cost, stock, active, shareable, created_by)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.HouseholdID, r.Name, r.Description, r.Icon, r.Cost, r.Stock, r.Active, boolToInt(r.Shareable), r.CreatedBy)
 	if err != nil {
 		return err
 	}
@@ -1378,9 +1412,9 @@ func (s *Store) GetReward(ctx context.Context, id int64) (*model.Reward, error) 
 	r := &model.Reward{}
 	var active, shareable int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, name, description, icon, cost, stock, active, shareable, created_by, created_at
+		`SELECT id, household_id, name, description, icon, cost, stock, active, shareable, created_by, created_at
 		 FROM rewards WHERE id = ?`, id).
-		Scan(&r.ID, &r.Name, &r.Description, &r.Icon, &r.Cost, &r.Stock, &active, &shareable, &r.CreatedBy, &r.CreatedAt)
+		Scan(&r.ID, &r.HouseholdID, &r.Name, &r.Description, &r.Icon, &r.Cost, &r.Stock, &active, &shareable, &r.CreatedBy, &r.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1390,7 +1424,7 @@ func (s *Store) GetReward(ctx context.Context, id int64) (*model.Reward, error) 
 }
 
 func (s *Store) ListRewards(ctx context.Context, activeOnly bool) ([]model.Reward, error) {
-	q := `SELECT id, name, description, icon, cost, stock, active, shareable, created_by, created_at FROM rewards`
+	q := `SELECT id, household_id, name, description, icon, cost, stock, active, shareable, created_by, created_at FROM rewards`
 	if activeOnly {
 		q += ` WHERE active = 1`
 	}
@@ -1404,7 +1438,7 @@ func (s *Store) ListRewards(ctx context.Context, activeOnly bool) ([]model.Rewar
 	for rows.Next() {
 		var r model.Reward
 		var active, shareable int
-		if err := rows.Scan(&r.ID, &r.Name, &r.Description, &r.Icon, &r.Cost, &r.Stock, &active, &shareable, &r.CreatedBy, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.HouseholdID, &r.Name, &r.Description, &r.Icon, &r.Cost, &r.Stock, &active, &shareable, &r.CreatedBy, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		r.Active = active == 1
@@ -1415,6 +1449,47 @@ func (s *Store) ListRewards(ctx context.Context, activeOnly bool) ([]model.Rewar
 	return rewards, rows.Err()
 }
 
+func (s *Store) ListRewardsByHousehold(ctx context.Context, householdID int64, activeOnly bool) ([]model.Reward, error) {
+	q := `SELECT id, household_id, name, description, icon, cost, stock, active, shareable, created_by, created_at FROM rewards WHERE household_id = ?`
+	if activeOnly {
+		q += ` AND active = 1`
+	}
+	q += ` ORDER BY cost`
+	rows, err := s.db.QueryContext(ctx, q, householdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var rewards []model.Reward
+	for rows.Next() {
+		var r model.Reward
+		var active, shareable int
+		if err := rows.Scan(&r.ID, &r.HouseholdID, &r.Name, &r.Description, &r.Icon, &r.Cost, &r.Stock, &active, &shareable, &r.CreatedBy, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		r.Active = active == 1
+		r.Shareable = shareable == 1
+		r.EffectiveCost = r.Cost
+		rewards = append(rewards, r)
+	}
+	return rewards, rows.Err()
+}
+
+func (s *Store) ListRewardsWithAssignmentsByHousehold(ctx context.Context, householdID int64) ([]model.Reward, error) {
+	rewards, err := s.ListRewardsByHousehold(ctx, householdID, false)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rewards {
+		assignments, err := s.GetRewardAssignments(ctx, rewards[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		rewards[i].Assignments = assignments
+	}
+	return rewards, nil
+}
+
 // ListRewardsForUser returns active rewards available to a specific user.
 // If a reward has no assignments, it's available to everyone.
 // If it has assignments, only assigned users see it, with per-user cost.
@@ -1423,10 +1498,11 @@ func (s *Store) ListRewardsForUser(ctx context.Context, userID int64) ([]model.R
 		SELECT r.id, r.name, r.description, r.icon, r.cost, r.stock, r.shareable, r.created_by, r.created_at,
 			ra.custom_cost
 		FROM rewards r
-		LEFT JOIN reward_assignments ra ON ra.reward_id = r.id AND ra.user_id = ?
+		JOIN users u ON u.id = ? AND r.household_id = u.household_id
+		LEFT JOIN reward_assignments ra ON ra.reward_id = r.id AND ra.user_id = u.id
 		WHERE r.active = 1
 		  AND (
-			-- No assignments at all: available to everyone
+			-- No assignments at all: available to everyone in this household
 			NOT EXISTS (SELECT 1 FROM reward_assignments WHERE reward_id = r.id)
 			-- Or this user is assigned
 			OR ra.id IS NOT NULL
@@ -1659,7 +1735,10 @@ func (s *Store) RedeemReward(ctx context.Context, userID, rewardID int64) (*mode
 	var stock sql.NullInt64
 	var active, shareable int
 	err = tx.QueryRowContext(ctx,
-		`SELECT cost, stock, active, shareable FROM rewards WHERE id = ?`, rewardID).
+		`SELECT r.cost, r.stock, r.active, r.shareable
+		 FROM rewards r
+		 JOIN users u ON u.id = ? AND r.household_id = u.household_id
+		 WHERE r.id = ?`, userID, rewardID).
 		Scan(&baseCost, &stock, &active, &shareable)
 	if err != nil {
 		return nil, fmt.Errorf("reward not found")
@@ -2189,7 +2268,10 @@ func (s *Store) CreateCommitment(ctx context.Context, userID, rewardID int64, au
 	var baseCost int
 	var active, shareable int
 	if err := tx.QueryRowContext(ctx,
-		`SELECT cost, active, shareable FROM rewards WHERE id = ?`, rewardID).
+		`SELECT r.cost, r.active, r.shareable
+		 FROM rewards r
+		 JOIN users u ON u.id = ? AND r.household_id = u.household_id
+		 WHERE r.id = ?`, userID, rewardID).
 		Scan(&baseCost, &active, &shareable); err != nil {
 		return nil, fmt.Errorf("reward not found")
 	}
@@ -2752,8 +2834,12 @@ func (s *Store) RecalculateStreak(ctx context.Context, userID int64, today strin
 }
 
 func (s *Store) ListStreakRewards(ctx context.Context) ([]model.StreakReward, error) {
+	return s.ListStreakRewardsByHousehold(ctx, 1)
+}
+
+func (s *Store) ListStreakRewardsByHousehold(ctx context.Context, householdID int64) ([]model.StreakReward, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, streak_days, bonus_points, label FROM streak_rewards ORDER BY streak_days`)
+		`SELECT id, household_id, streak_days, bonus_points, label FROM streak_rewards WHERE household_id = ? ORDER BY streak_days`, householdID)
 	if err != nil {
 		return nil, err
 	}
@@ -2761,7 +2847,7 @@ func (s *Store) ListStreakRewards(ctx context.Context) ([]model.StreakReward, er
 	var rewards []model.StreakReward
 	for rows.Next() {
 		var r model.StreakReward
-		if err := rows.Scan(&r.ID, &r.StreakDays, &r.BonusPoints, &r.Label); err != nil {
+		if err := rows.Scan(&r.ID, &r.HouseholdID, &r.StreakDays, &r.BonusPoints, &r.Label); err != nil {
 			return nil, err
 		}
 		rewards = append(rewards, r)
@@ -2770,9 +2856,12 @@ func (s *Store) ListStreakRewards(ctx context.Context) ([]model.StreakReward, er
 }
 
 func (s *Store) CreateStreakReward(ctx context.Context, r *model.StreakReward) error {
+	if r.HouseholdID == 0 {
+		r.HouseholdID = 1
+	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO streak_rewards (streak_days, bonus_points, label) VALUES (?, ?, ?)`,
-		r.StreakDays, r.BonusPoints, r.Label)
+		`INSERT INTO streak_rewards (household_id, streak_days, bonus_points, label) VALUES (?, ?, ?, ?)`,
+		r.HouseholdID, r.StreakDays, r.BonusPoints, r.Label)
 	if err != nil {
 		return err
 	}

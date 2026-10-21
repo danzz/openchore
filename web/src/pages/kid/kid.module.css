@@ -516,8 +516,50 @@
 }
 
 /* ---------- Me ---------- */
-.meHead { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-2); }
+.meHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.meUser {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
 .meWho { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.switchUserBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 var(--space-3);
+  box-sizing: border-box;
+  border: var(--outline-w) solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--lift);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.switchUserBtn:hover {
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+.switchUserBtn:active {
+  transform: translateY(0);
+}
+.switchUserBtn svg {
+  width: 18px;
+  height: 18px;
+}
 .meName {
   font-family: var(--font-display);
   font-weight: var(--display-weight);

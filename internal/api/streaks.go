@@ -67,7 +67,8 @@ func (h *StreakHandler) GetUserStreak(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *StreakHandler) ListRewards(w http.ResponseWriter, r *http.Request) {
-	rewards, err := h.store.ListStreakRewards(r.Context())
+	householdID := HouseholdIDFromContext(r.Context())
+	rewards, err := h.store.ListStreakRewardsByHousehold(r.Context(), householdID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list streak rewards")
 		return
@@ -81,8 +82,8 @@ func (h *StreakHandler) ListRewards(w http.ResponseWriter, r *http.Request) {
 func (h *StreakHandler) CreateReward(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		StreakDays  int    `json:"streak_days"`
-		BonusPoints int   `json:"bonus_points"`
-		Label      string `json:"label"`
+		BonusPoints int    `json:"bonus_points"`
+		Label       string `json:"label"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -92,10 +93,12 @@ func (h *StreakHandler) CreateReward(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "streak_days and bonus_points must be positive")
 		return
 	}
+	householdID := HouseholdIDFromContext(r.Context())
 	reward := &model.StreakReward{
+		HouseholdID: householdID,
 		StreakDays:  req.StreakDays,
 		BonusPoints: req.BonusPoints,
-		Label:      req.Label,
+		Label:       req.Label,
 	}
 	if err := h.store.CreateStreakReward(r.Context(), reward); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create streak reward")

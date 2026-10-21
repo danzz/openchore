@@ -225,6 +225,7 @@ export const KidApp: React.FC = () => {
           onPin={() => { setMeOpen(false); setPinOpen(true); }}
           onLinked={() => { setMeOpen(false); setLinkedOpen(true); }}
           onManage={toManage}
+          onSwitchUser={logout}
           onSignOut={logout}
         />
       )}

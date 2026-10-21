@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api, SESSION_EXPIRED_EVENT } from './api';
+import { api, SESSION_EXPIRED_EVENT, setActiveHouseholdId } from './api';
 import type { AuthSession, SessionInfo, SignInOptions, User } from './types';
 import { clearAutoSignIn } from './signInRedirect';
 
@@ -42,6 +42,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const me = await api.auth.me();
       setUserState(me.user);
       setSession(me.session);
+      if (me.user?.household_id) {
+        setActiveHouseholdId(me.user.household_id);
+      }
       setSignedOutHere(false);
       clearAutoSignIn();
     } catch {
@@ -76,6 +79,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = useCallback((auth: AuthSession) => {
     setUserState(auth.user);
     setSession(auth.session);
+    if (auth.user?.household_id) {
+      setActiveHouseholdId(auth.user.household_id);
+    }
     setSignedOutHere(false);
     clearAutoSignIn();
   }, []);
@@ -88,6 +94,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // The cookie is cleared server-side; nothing else to do.
     }
+    // Retain activeHouseholdId in localStorage so the device stays on
+    // this household's member picker rather than falling back to default tenant.
     setUserState(null);
     setSession(null);
     setSignedOutHere(true);

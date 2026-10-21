@@ -61,12 +61,53 @@ const (
 	ExpiryPenalty  = "penalty"
 )
 
+// Account is a platform-level user account (parent login via email/password).
+type Account struct {
+	ID           int64     `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"`
+	DisplayName  string    `json:"display_name"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// Household is a family tenant.
+type Household struct {
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	OwnerAccountID int64     `json:"owner_account_id"`
+	InviteCode     string    `json:"invite_code"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// HouseholdDevice represents a paired wall tablet / kiosk display.
+type HouseholdDevice struct {
+	ID                int64      `json:"id"`
+	HouseholdID       int64      `json:"household_id"`
+	DeviceToken       string     `json:"device_token,omitempty"`
+	DeviceName        string     `json:"device_name"`
+	PairCode          string     `json:"pair_code,omitempty"`
+	PairCodeExpiresAt *time.Time `json:"pair_code_expires_at,omitempty"`
+	PairedAt          *time.Time `json:"paired_at,omitempty"`
+	LastSeenAt        *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+}
+
+// HouseholdSetting is a key-value setting scoped to a household.
+type HouseholdSetting struct {
+	HouseholdID int64  `json:"household_id"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+}
+
 // User is a household member. AuthProviders lists the IDs of the OIDC
 // providers linked to the profile so the login screen can offer "Continue
 // with ..." after the profile is tapped; subjects and emails are never
 // exposed on the public listing.
 type User struct {
 	ID             int64     `json:"id"`
+	HouseholdID    int64     `json:"household_id"`
+	AccountID      *int64    `json:"account_id,omitempty"`
 	Name           string    `json:"name"`
 	AvatarURL      string    `json:"avatar_url"`
 	Role           string    `json:"role"`
@@ -161,6 +202,7 @@ type OIDCProvider struct {
 
 type Chore struct {
 	ID                 int64     `json:"id"`
+	HouseholdID        int64     `json:"household_id"`
 	Title              string    `json:"title"`
 	Description        string    `json:"description"`
 	Category           string    `json:"category"`
@@ -235,6 +277,7 @@ type PointTransaction struct {
 
 type Reward struct {
 	ID            int64              `json:"id"`
+	HouseholdID   int64              `json:"household_id"`
 	Name          string             `json:"name"`
 	Description   string             `json:"description"`
 	Icon          string             `json:"icon,omitempty"`
@@ -321,6 +364,7 @@ type UserStreak struct {
 
 type StreakReward struct {
 	ID          int64  `json:"id"`
+	HouseholdID int64  `json:"household_id"`
 	StreakDays  int    `json:"streak_days"`
 	BonusPoints int    `json:"bonus_points"`
 	Label       string `json:"label"`
@@ -393,8 +437,9 @@ type APIToken struct {
 // --- Webhooks ---
 
 type Webhook struct {
-	ID        int64     `json:"id"`
-	URL       string    `json:"url"`
+	ID          int64     `json:"id"`
+	HouseholdID int64     `json:"household_id"`
+	URL         string    `json:"url"`
 	Secret    string    `json:"secret,omitempty"`
 	Events    string    `json:"events"`
 	Active    bool      `json:"active"`

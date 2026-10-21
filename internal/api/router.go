@@ -38,6 +38,8 @@ func NewRouter(s *store.Store, dispatcher *webhook.Dispatcher, auth Auth) (*chi.
 	reports := NewReportsHandler(s, dispatcher, discordNotifier, aiSvc)
 	authH := NewAuthHandler(s, auth.Sessions, dispatcher, auth.OIDC)
 	oidcH := auth.OIDC
+	accounts := NewAccountHandler(s, auth.Sessions)
+	kiosk := NewKioskHandler(s)
 
 	// Serve uploaded photos
 	_ = os.MkdirAll("data/uploads", 0750)
@@ -48,6 +50,16 @@ func NewRouter(s *store.Store, dispatcher *webhook.Dispatcher, auth Auth) (*chi.
 
 	r.Route("/api", func(r chi.Router) {
 		r.Use(CheckOrigin(auth.OIDC.publicURL))
+		r.Use(ResolveHouseholdMiddleware(s, auth.Sessions))
+
+		// Platform Account Registration & Login
+		r.Post("/auth/register", accounts.Register)
+		r.Post("/auth/login-account", accounts.LoginAccount)
+		r.Get("/account/households", accounts.MyHouseholds)
+
+		// Wall Tablet Kiosk Pairing
+		r.Post("/kiosk/pair/init", kiosk.PairInit)
+		r.Get("/kiosk/pair/poll", kiosk.PairPoll)
 
 		// Public: list users (for profile selection screen)
 		r.Get("/users", users.List)
@@ -142,6 +154,11 @@ func NewRouter(s *store.Store, dispatcher *webhook.Dispatcher, auth Auth) (*chi.
 				// Settings
 				r.Get("/admin/settings/{key}", admin.GetSetting)
 				r.Put("/admin/settings/{key}", admin.SetSetting)
+
+				// Kiosk device management
+				r.Post("/kiosk/pair/claim", kiosk.PairClaim)
+				r.Get("/admin/kiosk/devices", kiosk.ListDevices)
+				r.Delete("/admin/kiosk/devices/{id}", kiosk.DeleteDevice)
 
 				// Approvals
 				r.Get("/completions/pending", chores.ListPending)

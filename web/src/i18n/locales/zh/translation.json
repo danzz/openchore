@@ -1252,6 +1252,7 @@
       "shuffle": "随机生成",
       "signOut": "退出登录",
       "skin": "个性装扮",
+      "switchUser": "换人",
       "title": "个人中心"
     },
     "paused": {
@@ -1287,7 +1288,7 @@
       "gone": "已兑完",
       "history": "我的兑换记录",
       "join": "一起存积分",
-      "more": "还有 {{count}} 项",
+      "more": "还需 {{count}} 分",
       "progress": "{{saved}} / {{target}} 分",
       "redeem": "立即兑换",
       "redeemed": "兑换成功！",

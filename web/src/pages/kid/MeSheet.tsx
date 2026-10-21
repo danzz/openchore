@@ -31,6 +31,7 @@ interface MeSheetProps {
   onPin: () => void;
   onLinked: () => void;
   onManage: () => void;
+  onSwitchUser?: () => void;
   onSignOut: () => void;
 }
 
@@ -55,7 +56,7 @@ function useRovingRadios<T>(values: readonly T[], current: T, select: (v: T) => 
 
 /** "Me": skin, colour, picture, read-aloud, language and account. */
 export function MeSheet(props: MeSheetProps) {
-  const { user, skin, isAdmin, tts, onClose, onSkin, onColor, onTts, onPin, onLinked, onManage, onSignOut } = props;
+  const { user, skin, isAdmin, tts, onClose, onSkin, onColor, onTts, onPin, onLinked, onManage, onSwitchUser, onSignOut } = props;
   const { t, i18n } = useTranslation();
   const [picking, setPicking] = useState(false);
   const color = isPersonColor(user.color) ? user.color : null;
@@ -72,13 +73,27 @@ export function MeSheet(props: MeSheetProps) {
   return (
     <Sheet title={t('kid.me.title')} onClose={onClose}>
       <div className={s.meHead}>
-        <Avatar name={user.name} color={color} size="lg" src={user.avatar_url || null} />
-        <div className={s.meWho}>
-          <span className={s.meName}>{user.name}</span>
-          <button type="button" className={s.linkBtn} onClick={() => setPicking(true)}>
-            {t('kid.me.changePicture')}
-          </button>
+        <div className={s.meUser}>
+          <Avatar name={user.name} color={color} size="lg" src={user.avatar_url || null} />
+          <div className={s.meWho}>
+            <span className={s.meName}>{user.name}</span>
+            <button type="button" className={s.linkBtn} onClick={() => setPicking(true)}>
+              {t('kid.me.changePicture')}
+            </button>
+          </div>
         </div>
+        {onSwitchUser && (
+          <button
+            type="button"
+            className={s.switchUserBtn}
+            onClick={onSwitchUser}
+            aria-label={t('kid.me.switchUser', '换人')}
+            title={t('kid.me.switchUser', '换人')}
+          >
+            <Icon name="people" />
+            <span>{t('kid.me.switchUser', '换人')}</span>
+          </button>
+        )}
       </div>
 
       <h3 id={skinHead} className={s.meSection}>{t('kid.me.skin')}</h3>

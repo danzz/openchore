@@ -14,7 +14,9 @@ import { useIdleRedirect } from './hooks/useIdleRedirect';
 // Dev-only design-system gallery at /design. It renders outside the auth
 // gate so it works without the API; the import is dropped from prod builds.
 const DesignGallery = import.meta.env.DEV ? React.lazy(() => import('./design/gallery/DesignGallery')) : null;
-const IDLE_EXEMPT = import.meta.env.DEV ? ['/setup', '/upload', '/design'] : ['/setup', '/upload'];
+const IDLE_EXEMPT = import.meta.env.DEV
+  ? ['/setup', '/upload', '/design', '/kiosk/pair', '/account/auth']
+  : ['/setup', '/upload', '/kiosk/pair', '/account/auth'];
 
 // Screens only a parent (or first-run setup) opens load on demand, so a kid's
 // tablet doesn't download and parse the whole Manage console to show the picker.
@@ -24,6 +26,8 @@ const AdminDashboard = React.lazy(() => loadAdmin().then(m => ({ default: m.Admi
 const Reports = React.lazy(() => loadReports().then(m => ({ default: m.Reports })));
 const SetupWizard = React.lazy(() => import('./pages/SetupWizard').then(m => ({ default: m.SetupWizard })));
 const PhotoUpload = React.lazy(() => import('./pages/PhotoUpload').then(m => ({ default: m.PhotoUpload })));
+const KioskPairing = React.lazy(() => import('./pages/KioskPairing').then(m => ({ default: m.KioskPairing })));
+const AccountAuth = React.lazy(() => import('./pages/AccountAuth').then(m => ({ default: m.AccountAuth })));
 
 const RequireAdmin: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { user } = useAuth();
@@ -82,6 +86,8 @@ export const App: React.FC = () => {
         <Route path="/login" element={<ProfileSelection />} />
         <Route path="/setup" element={<SetupWizard />} />
         <Route path="/upload" element={<PhotoUpload />} />
+        <Route path="/kiosk/pair" element={<KioskPairing />} />
+        <Route path="/account/auth" element={<AccountAuth />} />
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="/admin/dashboard" element={
           <RequireAdmin><AdminDashboard /></RequireAdmin>

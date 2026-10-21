@@ -103,6 +103,8 @@ export const THEME_CONFIG: Record<Theme, ThemeConfig> = {
 
 export interface User {
   id: number;
+  household_id?: number;
+  account_id?: number | null;
   name: string;
   avatar_url: string;
   role: 'admin' | 'child';
@@ -502,4 +504,44 @@ export interface AIReviewResult {
   feedback: string;
   would_approve: boolean;
   elapsed_ms: number;
+}
+
+export interface Account {
+  id: number;
+  email: string;
+  display_name: string;
+}
+
+export interface Household {
+  id: number;
+  name: string;
+  owner_account_id: number;
+  invite_code: string;
+  created_at: string;
+}
+
+export interface HouseholdDevice {
+  id: number;
+  household_id: number;
+  device_token?: string;
+  device_name: string;
+  pair_code?: string;
+  pair_code_expires_at?: string;
+  paired_at?: string;
+  last_seen_at?: string;
+  created_at: string;
+}
+
+export interface KioskInitResponse {
+  pair_code: string;
+  expires_in: number;
+  device_token?: string;
+}
+
+export interface KioskPollResponse {
+  paired: boolean;
+  expired?: boolean;
+  device_token?: string;
+  household_id?: number;
+  device_name?: string;
 }

@@ -1,6 +1,42 @@
-import type { User, PersonColor, AuthSession, AuthProvider, LinkedIdentity, ScheduledChore, Chore, ChoreSchedule, PointsData, PointBalance, PendingCompletion, Reward, RewardRedemption, RewardCommitment, SharedCommitmentPool, RedemptionHistory, UserStreakData, StreakRewardItem, ChoreTrigger, Webhook, WebhookDelivery, UserDecayConfig, APIToken, AIStatus, AIReviewResult, AIConfig, AIConnectionUpdate, AdminAuthConfig, AuthProviderInput, SignInOptions } from './types';
+import type { User, PersonColor, AuthSession, AuthProvider, LinkedIdentity, ScheduledChore, Chore, ChoreSchedule, PointsData, PointBalance, PendingCompletion, Reward, RewardRedemption, RewardCommitment, SharedCommitmentPool, RedemptionHistory, UserStreakData, StreakRewardItem, ChoreTrigger, Webhook, WebhookDelivery, UserDecayConfig, APIToken, AIStatus, AIReviewResult, AIConfig, AIConnectionUpdate, AdminAuthConfig, AuthProviderInput, SignInOptions, Account, Household, HouseholdDevice, KioskInitResponse, KioskPollResponse } from './types';
 
 const API_BASE = '/api';
+
+export function getDeviceToken(): string | null {
+  try {
+    return localStorage.getItem('openchore_device_token');
+  } catch {
+    return null;
+  }
+}
+
+export function setDeviceToken(token: string | null) {
+  try {
+    if (token) {
+      localStorage.setItem('openchore_device_token', token);
+    } else {
+      localStorage.removeItem('openchore_device_token');
+    }
+  } catch {}
+}
+
+export function getActiveHouseholdId(): string | null {
+  try {
+    return localStorage.getItem('openchore_household_id');
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveHouseholdId(id: string | number | null) {
+  try {
+    if (id) {
+      localStorage.setItem('openchore_household_id', String(id));
+    } else {
+      localStorage.removeItem('openchore_household_id');
+    }
+  } catch {}
+}
 
 // Resize images client-side before uploading to avoid Nginx body size limits
 // and reduce upload time on mobile. Returns a JPEG file ≤ maxDim on longest side.
@@ -63,8 +99,12 @@ export function setBearerToken(token: string | null) {
 export const SESSION_EXPIRED_EVENT = 'openchore:session-expired';
 
 async function fetchWithAuth<T>(path: string, options: RequestInit = {}, skipContentType = false): Promise<T> {
+  const deviceToken = getDeviceToken();
+  const householdId = getActiveHouseholdId();
   const headers: Record<string, string> = {
     ...(skipContentType ? {} : { 'Content-Type': 'application/json' }),
+    ...(deviceToken ? { 'X-Device-Token': deviceToken } : {}),
+    ...(householdId ? { 'X-Household-ID': householdId } : {}),
     ...(bearerOverride ? { Authorization: `Bearer ${bearerOverride}` } : {}),
     ...options.headers as Record<string, string>,
   };
@@ -74,7 +114,13 @@ async function fetchWithAuth<T>(path: string, options: RequestInit = {}, skipCon
     window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
   }
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: 'Unknown error' }));
+    const text = await resp.text().catch(() => '');
+    let err: any;
+    try {
+      err = JSON.parse(text);
+    } catch {
+      err = { error: text || `HTTP error! status: ${resp.status}` };
+    }
     throw new APIError(err.error || `HTTP error! status: ${resp.status}`, resp.status, err);
   }
   if (resp.status === 204) return {} as T;
@@ -82,13 +128,23 @@ async function fetchWithAuth<T>(path: string, options: RequestInit = {}, skipCon
 }
 
 async function fetchPublic<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const deviceToken = getDeviceToken();
+  const householdId = getActiveHouseholdId();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(deviceToken ? { 'X-Device-Token': deviceToken } : {}),
+    ...(householdId ? { 'X-Household-ID': householdId } : {}),
     ...options.headers as Record<string, string>,
   };
   const resp = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'same-origin' });
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: 'Unknown error' }));
+    const text = await resp.text().catch(() => '');
+    let err: any;
+    try {
+      err = JSON.parse(text);
+    } catch {
+      err = { error: text || `HTTP error! status: ${resp.status}` };
+    }
     throw new APIError(err.error || `HTTP error! status: ${resp.status}`, resp.status, err);
   }
   if (resp.status === 204) return {} as T;
@@ -396,5 +452,34 @@ export const api = {
       }),
     delete: (id: number) => fetchWithAuth(`/admin/webhooks/${id}`, { method: 'DELETE' }),
     listDeliveries: (id: number) => fetchWithAuth<WebhookDelivery[]>(`/admin/webhooks/${id}/deliveries`),
+  },
+  account: {
+    register: (data: { email: string; password: string; display_name?: string; household_name?: string }) =>
+      fetchPublic<{ account: Account; household: Household; user: User; token: string }>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    login: (data: { email: string; password: string }) =>
+      fetchPublic<{ account: Account; households: Household[]; user?: User; token?: string }>('/auth/login-account', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    myHouseholds: () =>
+      fetchWithAuth<{ households: Household[] }>('/account/households'),
+  },
+  kiosk: {
+    init: () =>
+      fetchPublic<KioskInitResponse>('/kiosk/pair/init', { method: 'POST' }),
+    poll: (code: string) =>
+      fetchPublic<KioskPollResponse>(`/kiosk/pair/poll?code=${encodeURIComponent(code)}`),
+    claim: (data: { code: string; device_name?: string; household_id?: number }) =>
+      fetchWithAuth<{ success: boolean; device: HouseholdDevice }>('/kiosk/pair/claim', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    listDevices: () =>
+      fetchWithAuth<{ devices: HouseholdDevice[] }>('/admin/kiosk/devices'),
+    deleteDevice: (id: number) =>
+      fetchWithAuth(`/admin/kiosk/devices/${id}`, { method: 'DELETE' }),
   },
 };

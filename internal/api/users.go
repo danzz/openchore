@@ -22,7 +22,8 @@ func NewUserHandler(s *store.Store, dispatcher *webhook.Dispatcher) *UserHandler
 }
 
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
-	users, err := h.store.ListUsers(r.Context())
+	householdID := HouseholdIDFromContext(r.Context())
+	users, err := h.store.ListUsersByHousehold(r.Context(), householdID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list users")
 		return
@@ -94,12 +95,13 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := &model.User{
-		Name:      req.Name,
-		AvatarURL: req.AvatarURL,
-		Role:      req.Role,
-		Age:       req.Age,
-		Theme:     req.Theme,
-		Color:     req.Color, // empty: the store assigns the next free colour
+		HouseholdID: HouseholdIDFromContext(r.Context()),
+		Name:        req.Name,
+		AvatarURL:   req.AvatarURL,
+		Role:        req.Role,
+		Age:         req.Age,
+		Theme:       req.Theme,
+		Color:       req.Color, // empty: the store assigns the next free colour
 	}
 	if req.Pin != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(req.Pin), bcrypt.DefaultCost)
