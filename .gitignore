@@ -23,6 +23,7 @@ web/debug-*.mjs
 
 # Config (user's real config — copy config.example.yaml to config.yaml)
 config/config.yaml
+.env
 
 # OS
 .DS_Store

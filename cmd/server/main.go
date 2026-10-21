@@ -2,46 +2,34 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	msqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/liftedkilt/openchore/internal/api"
 	"github.com/liftedkilt/openchore/internal/config"
+	dbpkg "github.com/liftedkilt/openchore/internal/db"
 	"github.com/liftedkilt/openchore/internal/store"
 	"github.com/liftedkilt/openchore/internal/tts"
 	"github.com/liftedkilt/openchore/internal/webhook"
-	"github.com/liftedkilt/openchore/migrations"
 )
 
 func main() {
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "openchore.db"
-	}
+	dbpkg.LoadEnv("")
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	sqlDB, dialect, err := dbpkg.OpenAndMigrate(context.Background())
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		log.Fatalf("failed to initialize database: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	defer db.Close()
+	defer sqlDB.Close()
 
-	if err := runMigrations(db); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
-	}
-
-	s := store.New(db)
+	s := store.NewWithDialect(sqlDB, dialect)
 
 	// Load and apply config file (only populates an empty database)
 	configPath := os.Getenv("CONFIG_PATH")
@@ -132,28 +120,4 @@ func main() {
 	if err := http.ListenAndServe(":"+port, router); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
-}
-
-func runMigrations(db *sql.DB) error {
-	driver, err := msqlite.WithInstance(db, &msqlite.Config{})
-	if err != nil {
-		return fmt.Errorf("creating migration driver: %w", err)
-	}
-
-	source, err := iofs.New(migrations.FS, ".")
-	if err != nil {
-		return fmt.Errorf("creating migration source: %w", err)
-	}
-
-	m, err := migrate.NewWithInstance("iofs", source, "sqlite", driver)
-	if err != nil {
-		return fmt.Errorf("creating migrator: %w", err)
-	}
-
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("running migrations: %w", err)
-	}
-
-	log.Println("migrations complete")
-	return nil
 }

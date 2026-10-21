@@ -12,7 +12,7 @@ import (
 )
 
 type Store struct {
-	db *sql.DB
+	db *DB
 }
 
 // normalizeDate strips the time component that modernc.org/sqlite appends
@@ -32,7 +32,19 @@ func boolToInt(b bool) int {
 }
 
 func New(db *sql.DB) *Store {
-	return &Store{db: db}
+	return NewWithDialect(db, DetectDialect(db))
+}
+
+func NewWithDialect(db *sql.DB, dialect Dialect) *Store {
+	return &Store{db: wrapDB(db, dialect)}
+}
+
+func (s *Store) DB() *sql.DB {
+	return s.db.DB
+}
+
+func (s *Store) Dialect() Dialect {
+	return s.db.dialect
 }
 
 // --- Users ---
@@ -51,13 +63,14 @@ func (s *Store) CreateUser(ctx context.Context, u *model.User) error {
 		u.Color = model.NextPersonColor(used)
 	}
 	paused := boolToInt(u.Paused)
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO users (household_id, account_id, name, avatar_url, role, age, theme, line_color, color, paused, pin_hash, pin_length) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"id",
 		u.HouseholdID, u.AccountID, u.Name, u.AvatarURL, u.Role, u.Age, u.Theme, u.LineColor, u.Color, paused, u.PinHash, u.PinLength)
 	if err != nil {
 		return err
 	}
-	u.ID, _ = res.LastInsertId()
+	u.ID = id
 	u.HasPin = u.PinHash != ""
 	if u.AuthProviders == nil {
 		u.AuthProviders = []string{}
@@ -218,13 +231,14 @@ func (s *Store) ListIdentitiesForUser(ctx context.Context, userID int64) ([]mode
 // LinkIdentity attaches an external identity to a profile. It fails with a
 // UNIQUE constraint error when the subject is already linked to any profile.
 func (s *Store) LinkIdentity(ctx context.Context, i *model.UserIdentity) error {
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO user_identities (user_id, provider, subject, email, display_name) VALUES (?, ?, ?, ?, ?)`,
+		"id",
 		i.UserID, i.Provider, i.Subject, i.Email, i.DisplayName)
 	if err != nil {
 		return err
 	}
-	i.ID, _ = res.LastInsertId()
+	i.ID = id
 	return nil
 }
 
@@ -368,14 +382,15 @@ func (s *Store) CreateChore(ctx context.Context, c *model.Chore) error {
 	if photoSource == "" {
 		photoSource = model.PhotoSourceChild
 	}
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO chores (household_id, title, description, category, icon, points_value, missed_penalty_value, estimated_minutes, requires_approval, requires_photo, photo_source, source, external_id, tts_audio_url, created_by)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"id",
 		c.HouseholdID, c.Title, c.Description, c.Category, c.Icon, c.PointsValue, c.MissedPenaltyValue, c.EstimatedMinutes, requiresApproval, requiresPhoto, photoSource, c.Source, c.ExternalID, c.TTSAudioURL, c.CreatedBy)
 	if err != nil {
 		return err
 	}
-	c.ID, _ = res.LastInsertId()
+	c.ID = id
 	return nil
 }
 
@@ -466,14 +481,15 @@ func (s *Store) UpdateChoreTTSAudioURL(ctx context.Context, choreID int64, url s
 // --- Schedules ---
 
 func (s *Store) CreateSchedule(ctx context.Context, cs *model.ChoreSchedule) error {
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO chore_schedules (chore_id, assigned_to, assignment_type, fcfs_group_id, day_of_week, specific_date, available_at, points_multiplier, start_date, end_date, recurrence_interval, recurrence_start, due_by, expiry_penalty, expiry_penalty_value)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"id",
 		cs.ChoreID, cs.AssignedTo, cs.AssignmentType, cs.FcfsGroupID, cs.DayOfWeek, cs.SpecificDate, cs.AvailableAt, cs.PointsMultiplier, cs.StartDate, cs.EndDate, cs.RecurrenceInterval, cs.RecurrenceStart, cs.DueBy, cs.ExpiryPenalty, cs.ExpiryPenaltyValue)
 	if err != nil {
 		return err
 	}
-	cs.ID, _ = res.LastInsertId()
+	cs.ID = id
 	return nil
 }
 
@@ -645,14 +661,15 @@ func (s *Store) GetScheduledChoresForUser(ctx context.Context, userID int64, dat
 // --- Completions ---
 
 func (s *Store) CompleteChore(ctx context.Context, cc *model.ChoreCompletion) error {
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO chore_completions (chore_schedule_id, completed_by, status, photo_url, completion_date, ai_feedback, ai_confidence, approved_by, approved_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"id",
 		cc.ChoreScheduleID, cc.CompletedBy, cc.Status, cc.PhotoURL, cc.CompletionDate, cc.AIFeedback, cc.AIConfidence, cc.ApprovedBy, cc.ApprovedAt)
 	if err != nil {
 		return err
 	}
-	cc.ID, _ = res.LastInsertId()
+	cc.ID = id
 	return nil
 }
 
@@ -666,14 +683,15 @@ func (s *Store) CompleteChoreAndCreditPoints(ctx context.Context, cc *model.Chor
 	}
 	defer tx.Rollback()
 
-	res, err := tx.ExecContext(ctx,
+	id, err := tx.InsertReturningID(ctx,
 		`INSERT INTO chore_completions (chore_schedule_id, completed_by, status, photo_url, completion_date, ai_feedback, ai_confidence, approved_by, approved_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"id",
 		cc.ChoreScheduleID, cc.CompletedBy, cc.Status, cc.PhotoURL, cc.CompletionDate, cc.AIFeedback, cc.AIConfidence, cc.ApprovedBy, cc.ApprovedAt)
 	if err != nil {
 		return err
 	}
-	cc.ID, _ = res.LastInsertId()
+	cc.ID = id
 
 	if cc.Status == model.StatusApproved {
 		if pts > 0 {
@@ -780,14 +798,15 @@ func (s *Store) ExcuseChoreAndRefundPenalty(ctx context.Context, scheduleID int6
 			return nil, err
 		}
 	} else if errors.Is(err, sql.ErrNoRows) {
-		res, err := tx.ExecContext(ctx,
+		id, err := tx.InsertReturningID(ctx,
 			`INSERT INTO chore_completions (chore_schedule_id, completed_by, status, photo_url, completion_date, ai_feedback, approved_by, approved_at)
 			 VALUES (?, ?, ?, '', ?, ?, ?, ?)`,
+			"id",
 			scheduleID, userID, model.StatusExcused, date, reason, adminID, now)
 		if err != nil {
 			return nil, err
 		}
-		completionID, _ = res.LastInsertId()
+		completionID = id
 	} else {
 		return nil, err
 	}
@@ -1397,14 +1416,15 @@ func (s *Store) CreateReward(ctx context.Context, r *model.Reward) error {
 	if r.HouseholdID == 0 {
 		r.HouseholdID = 1
 	}
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO rewards (household_id, name, description, icon, cost, stock, active, shareable, created_by)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"id",
 		r.HouseholdID, r.Name, r.Description, r.Icon, r.Cost, r.Stock, r.Active, boolToInt(r.Shareable), r.CreatedBy)
 	if err != nil {
 		return err
 	}
-	r.ID, _ = res.LastInsertId()
+	r.ID = id
 	return nil
 }
 
@@ -1647,13 +1667,13 @@ func (s *Store) UpdateReward(ctx context.Context, r *model.Reward) error {
 			return err
 		}
 		if len(legacyIDs) > 0 {
-			res, err := tx.ExecContext(ctx,
+			poolID, err := tx.InsertReturningID(ctx,
 				`INSERT INTO shared_commitment_pools (reward_id, target_cost) VALUES (?, ?)`,
+				"id",
 				r.ID, r.Cost)
 			if err != nil {
 				return err
 			}
-			poolID, _ := res.LastInsertId()
 			for _, id := range legacyIDs {
 				if _, err := tx.ExecContext(ctx,
 					`UPDATE reward_commitments SET shared_pool_id = ?, target_cost = ? WHERE id = ?`,
@@ -1842,13 +1862,13 @@ func (s *Store) RedeemReward(ctx context.Context, userID, rewardID int64) (*mode
 		return nil, fmt.Errorf("insufficient points (have %d, need %d)", balance, cost)
 	}
 
-	res, err := tx.ExecContext(ctx,
+	redemptionID, err := tx.InsertReturningID(ctx,
 		`INSERT INTO reward_redemptions (reward_id, user_id, points_spent) VALUES (?, ?, ?)`,
+		"id",
 		rewardID, userID, cost)
 	if err != nil {
 		return nil, err
 	}
-	redemptionID, _ := res.LastInsertId()
 
 	if commitmentID != 0 {
 		if _, err := tx.ExecContext(ctx,
@@ -1893,7 +1913,7 @@ func (s *Store) RedeemReward(ctx context.Context, userID, rewardID int64) (*mode
 // contributor is debited their saved amount, the pool is marked redeemed,
 // stock decrements once. The caller must be a contributor with a non-zero
 // saved share. Returns the calling user's RewardRedemption row.
-func (s *Store) redeemSharedPoolTx(ctx context.Context, tx *sql.Tx, userID, rewardID int64, stock sql.NullInt64) (*model.RewardRedemption, error) {
+func (s *Store) redeemSharedPoolTx(ctx context.Context, tx *Tx, userID, rewardID int64, stock sql.NullInt64) (*model.RewardRedemption, error) {
 	// Find the active pool for this reward.
 	var poolID int64
 	var poolTarget int
@@ -1976,13 +1996,13 @@ func (s *Store) redeemSharedPoolTx(ctx context.Context, tx *sql.Tx, userID, rewa
 			}
 			continue
 		}
-		res, err := tx.ExecContext(ctx,
+		redemptionID, err := tx.InsertReturningID(ctx,
 			`INSERT INTO reward_redemptions (reward_id, user_id, points_spent) VALUES (?, ?, ?)`,
+			"id",
 			rewardID, c.userID, c.saved)
 		if err != nil {
 			return nil, err
 		}
-		redemptionID, _ := res.LastInsertId()
 
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO point_transactions (user_id, amount, reason, reference_id, note)
@@ -2314,13 +2334,14 @@ func (s *Store) CreateCommitment(ctx context.Context, userID, rewardID int64, au
 			// admins changing the price mid-pool can't punish the savers.
 			// Per-user pricing (custom_cost) is intentionally NOT applied to
 			// shared pools — one cost for the shared goal.
-			res, err := tx.ExecContext(ctx,
+			id, err := tx.InsertReturningID(ctx,
 				`INSERT INTO shared_commitment_pools (reward_id, target_cost) VALUES (?, ?)`,
+				"id",
 				rewardID, baseCost)
 			if err != nil {
 				return nil, err
 			}
-			poolID, _ = res.LastInsertId()
+			poolID = id
 			poolTarget = baseCost
 		} else if err != nil {
 			return nil, err
@@ -2337,14 +2358,15 @@ func (s *Store) CreateCommitment(ctx context.Context, userID, rewardID int64, au
 			return nil, err
 		}
 
-		res, err := tx.ExecContext(ctx,
+		id, err := tx.InsertReturningID(ctx,
 			`INSERT INTO reward_commitments (user_id, reward_id, target_cost, auto_contribute_percent, shared_pool_id)
 			 VALUES (?, ?, ?, ?, ?)`,
+			"id",
 			userID, rewardID, poolTarget, autoPercent, poolID)
 		if err != nil {
 			return nil, err
 		}
-		commitmentID, _ = res.LastInsertId()
+		commitmentID = id
 	} else {
 		// Personal: refuse if user has an active personal commitment.
 		var existing int64
@@ -2366,14 +2388,15 @@ func (s *Store) CreateCommitment(ctx context.Context, userID, rewardID int64, au
 			target = int(customCost.Int64)
 		}
 
-		res, err := tx.ExecContext(ctx,
+		id, err := tx.InsertReturningID(ctx,
 			`INSERT INTO reward_commitments (user_id, reward_id, target_cost, auto_contribute_percent)
 			 VALUES (?, ?, ?, ?)`,
+			"id",
 			userID, rewardID, target, autoPercent)
 		if err != nil {
 			return nil, err
 		}
-		commitmentID, _ = res.LastInsertId()
+		commitmentID = id
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -2584,7 +2607,7 @@ func (s *Store) BreakCommitment(ctx context.Context, userID, commitmentID int64)
 // join order). Each commitment is capped at its remaining target — for
 // shared shares the cap is the *pool's* remaining capacity so the last kid
 // in can't push the pool past 100%. Stops when the credit is exhausted.
-func (s *Store) applyAutoContributeTx(ctx context.Context, tx *sql.Tx, userID, completionID int64, creditAmount int) error {
+func (s *Store) applyAutoContributeTx(ctx context.Context, tx *Tx, userID, completionID int64, creditAmount int) error {
 	if creditAmount <= 0 {
 		return nil
 	}
@@ -2678,7 +2701,7 @@ func (s *Store) applyAutoContributeTx(ctx context.Context, tx *sql.Tx, userID, c
 // reverseAutoContributeTx reverses any auto-contributions tied to this
 // completion if their commitment is still active. Idempotent: looks for a
 // previously emitted reversal note and skips work it already did.
-func (s *Store) reverseAutoContributeTx(ctx context.Context, tx *sql.Tx, userID, completionID int64) error {
+func (s *Store) reverseAutoContributeTx(ctx context.Context, tx *Tx, userID, completionID int64) error {
 	autoNote := fmt.Sprintf("auto:completion:%d", completionID)
 	revertNote := fmt.Sprintf("auto_revert:completion:%d", completionID)
 
@@ -2859,13 +2882,14 @@ func (s *Store) CreateStreakReward(ctx context.Context, r *model.StreakReward) e
 	if r.HouseholdID == 0 {
 		r.HouseholdID = 1
 	}
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO streak_rewards (household_id, streak_days, bonus_points, label) VALUES (?, ?, ?, ?)`,
+		"id",
 		r.HouseholdID, r.StreakDays, r.BonusPoints, r.Label)
 	if err != nil {
 		return err
 	}
-	r.ID, _ = res.LastInsertId()
+	r.ID = id
 	return nil
 }
 
@@ -3209,7 +3233,7 @@ func (s *Store) DebitDecayWithClawback(ctx context.Context, userID int64, amount
 // savings goals back into their spendable balance, returning the total
 // reclaimed and a per-goal breakdown. Callers must run it inside a
 // transaction that also writes the debit those points are funding.
-func (s *Store) clawBackFromGoalsTx(ctx context.Context, tx *sql.Tx, userID int64, need int, date string) (int, []DecayClawback, error) {
+func (s *Store) clawBackFromGoalsTx(ctx context.Context, tx *Tx, userID int64, need int, date string) (int, []DecayClawback, error) {
 	rows, err := tx.QueryContext(ctx,
 		`SELECT rc.id, r.name, rc.shared_pool_id,
 		        COALESCE(-SUM(pt.amount), 0) AS saved
@@ -3458,14 +3482,15 @@ func (s *Store) CreateChoreTrigger(ctx context.Context, t *model.ChoreTrigger) e
 	if t.AssignmentType == "" {
 		t.AssignmentType = model.AssignmentIndividual
 	}
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO chore_triggers (uuid, chore_id, default_assigned_to, default_due_by, default_available_at, enabled, cooldown_minutes, assignment_type)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"id",
 		t.UUID, t.ChoreID, t.DefaultAssignedTo, t.DefaultDueBy, t.DefaultAvailableAt, enabled, t.CooldownMinutes, t.AssignmentType)
 	if err != nil {
 		return err
 	}
-	t.ID, _ = res.LastInsertId()
+	t.ID = id
 	return nil
 }
 
@@ -3571,13 +3596,14 @@ func (s *Store) GetUserPinHash(ctx context.Context, userID int64) (string, error
 // --- API Tokens ---
 
 func (s *Store) CreateAPIToken(ctx context.Context, t *model.APIToken) error {
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO api_tokens (name, token_hash) VALUES (?, ?)`,
+		"id",
 		t.Name, t.TokenHash)
 	if err != nil {
 		return err
 	}
-	t.ID, _ = res.LastInsertId()
+	t.ID = id
 	return nil
 }
 
@@ -3685,13 +3711,14 @@ func (s *Store) ListTriggersWithChores(ctx context.Context) ([]model.Triggerable
 
 func (s *Store) CreateWebhook(ctx context.Context, w *model.Webhook) error {
 	active := boolToInt(w.Active)
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO webhooks (url, secret, events, active) VALUES (?, ?, ?, ?)`,
+		"id",
 		w.URL, w.Secret, w.Events, active)
 	if err != nil {
 		return err
 	}
-	w.ID, _ = res.LastInsertId()
+	w.ID = id
 	return nil
 }
 

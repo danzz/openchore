@@ -20,13 +20,14 @@ var (
 
 func (s *Store) CreateAccount(ctx context.Context, a *model.Account) error {
 	now := time.Now().UTC()
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO accounts (email, password_hash, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		"id",
 		a.Email, a.PasswordHash, a.DisplayName, now, now)
 	if err != nil {
 		return err
 	}
-	a.ID, _ = res.LastInsertId()
+	a.ID = id
 	a.CreatedAt = now
 	a.UpdatedAt = now
 	return nil
@@ -46,7 +47,7 @@ func (s *Store) GetAccountByID(ctx context.Context, id int64) (*model.Account, e
 func (s *Store) GetAccountByEmail(ctx context.Context, email string) (*model.Account, error) {
 	a := &model.Account{}
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, display_name, created_at, updated_at FROM accounts WHERE email = ? COLLATE NOCASE`, email).
+		`SELECT id, email, password_hash, display_name, created_at, updated_at FROM accounts WHERE LOWER(email) = LOWER(?)`, email).
 		Scan(&a.ID, &a.Email, &a.PasswordHash, &a.DisplayName, &a.CreatedAt, &a.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrAccountNotFound
@@ -58,13 +59,14 @@ func (s *Store) GetAccountByEmail(ctx context.Context, email string) (*model.Acc
 
 func (s *Store) CreateHousehold(ctx context.Context, h *model.Household) error {
 	now := time.Now().UTC()
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO households (name, owner_account_id, invite_code, created_at) VALUES (?, ?, ?, ?)`,
+		"id",
 		h.Name, h.OwnerAccountID, h.InviteCode, now)
 	if err != nil {
 		return err
 	}
-	h.ID, _ = res.LastInsertId()
+	h.ID = id
 	h.CreatedAt = now
 	return nil
 }
@@ -137,14 +139,15 @@ func (s *Store) ListActiveHouseholds(ctx context.Context) ([]model.Household, er
 
 func (s *Store) CreateHouseholdDevice(ctx context.Context, d *model.HouseholdDevice) error {
 	now := time.Now().UTC()
-	res, err := s.db.ExecContext(ctx,
+	id, err := s.db.InsertReturningID(ctx,
 		`INSERT INTO household_devices (household_id, device_token, device_name, pair_code, pair_code_expires_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
+		"id",
 		d.HouseholdID, d.DeviceToken, d.DeviceName, d.PairCode, d.PairCodeExpiresAt, now)
 	if err != nil {
 		return err
 	}
-	d.ID, _ = res.LastInsertId()
+	d.ID = id
 	d.CreatedAt = now
 	return nil
 }

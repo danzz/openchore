@@ -58,6 +58,10 @@ test-e2e:
 # Run all tests (Go unit + e2e)
 test-all: test test-e2e
 
+# Migrate existing SQLite database to PostgreSQL
+db-migrate-to-postgres:
+	go run cmd/migrate-db/main.go
+
 # Clean up build artifacts and database
 clean:
 	rm -f server openchore.db openchore.db-shm openchore.db-wal
