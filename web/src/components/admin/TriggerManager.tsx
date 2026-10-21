@@ -225,7 +225,16 @@ export const TriggerManager: React.FC<{
                   <button type="button" className={ui.iconBtn} title={t('admin.triggerManager.editTitle')} aria-label={t('admin.triggerManager.editAriaLabel')} onClick={() => startEdit(trigger)}>
                     <Pencil aria-hidden />
                   </button>
-                  <button type="button" className={clsx(ui.iconBtn, ui.iconBtnDanger)} title={t('admin.triggerManager.deleteTitle')} aria-label={t('admin.triggerManager.deleteAriaLabel')} onClick={() => handleDelete(trigger.id)}>
+                  <button
+                    type="button"
+                    className={clsx(ui.iconBtn, ui.iconBtnDanger)}
+                    title={t('admin.triggerManager.deleteTitle')}
+                    aria-label={t('admin.triggerManager.deleteAriaLabel')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(trigger.id);
+                    }}
+                  >
                     <Trash2 aria-hidden />
                   </button>
                 </div>

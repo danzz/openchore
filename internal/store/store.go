@@ -1196,8 +1196,47 @@ func (s *Store) UpdateUser(ctx context.Context, u *model.User) error {
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
-	return err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Reassign chores and rewards created by this user to another admin if possible
+	_, _ = tx.ExecContext(ctx, `UPDATE chores SET created_by = COALESCE((SELECT id FROM users WHERE role = 'admin' AND id != ? LIMIT 1), created_by) WHERE created_by = ?`, id, id)
+	_, _ = tx.ExecContext(ctx, `UPDATE rewards SET created_by = COALESCE((SELECT id FROM users WHERE role = 'admin' AND id != ? LIMIT 1), created_by) WHERE created_by = ?`, id, id)
+
+	// Clear approvals done by this user
+	if _, err := tx.ExecContext(ctx, `UPDATE chore_completions SET approved_by = NULL WHERE approved_by = ?`, id); err != nil {
+		return err
+	}
+
+	// Delete completions completed by this user
+	if _, err := tx.ExecContext(ctx, `DELETE FROM chore_completions WHERE completed_by = ?`, id); err != nil {
+		return err
+	}
+
+	// Delete chore schedules assigned to this user
+	if _, err := tx.ExecContext(ctx, `DELETE FROM chore_schedules WHERE assigned_to = ?`, id); err != nil {
+		return err
+	}
+
+	// Delete reward assignments
+	if _, err := tx.ExecContext(ctx, `DELETE FROM reward_assignments WHERE user_id = ?`, id); err != nil {
+		return err
+	}
+
+	// Delete reward redemptions
+	if _, err := tx.ExecContext(ctx, `DELETE FROM reward_redemptions WHERE user_id = ?`, id); err != nil {
+		return err
+	}
+
+	// Delete the user row (cascades point_transactions, reward_commitments, user_identities, user_decay_config)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // --- Points ---

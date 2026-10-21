@@ -19,6 +19,13 @@ var writableSettings = map[string]bool{
 	"tts_voice":                 true,
 	"base_url":                  true,
 	"discord_webhook_url":       true,
+	"allow_redemptions":          true,
+	"missed_chores_cutoff_hour":  true,
+	"missed_chores_penalty_mode": true,
+	"missed_chores_flat_penalty": true,
+	"points_decay_enabled":       true,
+	"points_decay_daily_percent": true,
+	"points_decay_cutoff_hour":   true,
 }
 
 type AdminHandler struct {

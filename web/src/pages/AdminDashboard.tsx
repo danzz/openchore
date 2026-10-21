@@ -16,9 +16,10 @@ import { PointsTab } from '../components/admin/PointsTab';
 import { ActivityTab } from '../components/admin/ActivityTab';
 import { SettingsTab } from '../components/admin/SettingsTab';
 import { KidsStatusTab } from '../components/admin/KidsStatusTab';
+import { RulesTab } from '../components/admin/RulesTab';
 import { LanguageSelector } from '../components/LanguageSelector/LanguageSelector';
 
-type Tab = 'kids-status' | 'approvals' | 'chores' | 'rewards' | 'points' | 'activity' | 'users' | 'settings';
+type Tab = 'kids-status' | 'approvals' | 'chores' | 'rewards' | 'points' | 'activity' | 'users' | 'rules' | 'settings';
 
 const TABS: { id: Tab; label: string; icon?: IconName }[] = [
   { id: 'kids-status', label: 'admin.dashboard.tabKids', icon: 'home' },
@@ -28,6 +29,7 @@ const TABS: { id: Tab; label: string; icon?: IconName }[] = [
   { id: 'points', label: 'admin.dashboard.tabPoints', icon: 'star' },
   { id: 'activity', label: 'admin.dashboard.tabLog', icon: 'clock' },
   { id: 'users', label: 'admin.dashboard.tabPeople', icon: 'people' },
+  { id: 'rules', label: 'admin.dashboard.tabRules', icon: 'spark' },
   // Settings stays last (e2e: `nav button` last).
   { id: 'settings', label: 'admin.dashboard.tabSettings' },
 ];
@@ -110,6 +112,7 @@ export const AdminDashboard: React.FC = () => {
         {tab === 'rewards' && <RewardsTab />}
         {tab === 'points' && <PointsTab />}
         {tab === 'activity' && <ActivityTab />}
+        {tab === 'rules' && <RulesTab />}
         {tab === 'settings' && <SettingsTab />}
       </main>
 

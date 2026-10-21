@@ -310,7 +310,10 @@ export const ScheduleManager: React.FC<{
                 className={clsx(ui.iconBtn, ui.iconBtnDanger, styles.itemEnd)}
                 aria-label={t('admin.scheduleManager.ariaDeleteSchedule')}
                 title={t('admin.scheduleManager.ariaDeleteSchedule')}
-                onClick={() => handleDeleteGroup(g.scheduleIds)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteGroup(g.scheduleIds);
+                }}
               >
                 <Trash2 aria-hidden />
               </button>

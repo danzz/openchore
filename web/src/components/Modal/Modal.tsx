@@ -92,7 +92,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidt
   if (!isOpen) return null;
 
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+    if (e.target === e.currentTarget) {
       onClose();
     }
   };

@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pause, Play, RefreshCw } from 'lucide-react';
+import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import Modal from '../Modal/Modal';
+import ConfirmModal from '../ConfirmModal/ConfirmModal';
 import { api, APIError } from '../../api';
 import type { Chore, User } from '../../types';
 import { Icon, catFromCategory } from '../../design';
 import { CategoryPicker, IconPicker } from '../admin/pickers';
 import { useAIStatus } from '../../hooks/useAIStatus';
+import ui from '../admin/ui.module.css';
 import styles from './EditChoreModal.module.css';
 
 interface Props {
@@ -117,6 +119,26 @@ const EditChoreModal: React.FC<Props> = ({ chore, isOpen, onClose, onSaved, user
       setError(e instanceof Error && e.message ? e.message : t('admin.editChore.saveError'));
     }
     setSaving(false);
+  };
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const handleConfirmDeleteChore = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await api.chores.delete(chore.id);
+      setConfirmDeleteOpen(false);
+      onClose();
+      onSaved();
+    } catch (e: unknown) {
+      const msg = e instanceof APIError ? (e.data?.error || e.message) : (e instanceof Error ? e.message : t('admin.editChore.deleteError'));
+      setDeleteError(msg);
+      setDeleting(false);
+      throw e;
+    }
   };
 
   return (
@@ -238,6 +260,43 @@ const EditChoreModal: React.FC<Props> = ({ chore, isOpen, onClose, onSaved, user
       <hr className={styles.divider} />
 
       {renderTriggers(chore.id, users)}
+
+      <hr className={styles.divider} />
+
+      {/* --- Danger Zone / Delete Chore --- */}
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle} style={{ color: 'var(--urgent)' }}>
+          <Trash2 aria-hidden /> {t('admin.editChore.dangerZone')}
+        </h3>
+        <p className={styles.ttsHint}>
+          {t('admin.editChore.deleteHint')}
+        </p>
+        {deleteError && <span className={styles.error} role="alert">{deleteError}</span>}
+        <div>
+          <button
+            type="button"
+            className={ui.btnDanger}
+            onClick={() => setConfirmDeleteOpen(true)}
+            disabled={deleting}
+          >
+            <Trash2 aria-hidden />
+            {deleting ? t('admin.editChore.deleting') : t('admin.editChore.deleteBtn')}
+          </button>
+        </div>
+      </section>
+
+      {confirmDeleteOpen && (
+        <ConfirmModal
+          isOpen={confirmDeleteOpen}
+          title={t('admin.choresTab.deleteTitle')}
+          message={t('admin.choresTab.confirmDelete', { name: chore.title })}
+          confirmLabel={t('admin.editChore.deleteBtn', { defaultValue: '确认删除' })}
+          cancelLabel={t('common.cancel', { defaultValue: '取消' })}
+          isDanger={true}
+          onConfirm={handleConfirmDeleteChore}
+          onCancel={() => setConfirmDeleteOpen(false)}
+        />
+      )}
     </Modal>
   );
 };

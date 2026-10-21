@@ -71,6 +71,7 @@
     "choresTab": {
       "addChore": "Add Chore",
       "confirmDelete": "Delete chore \"{{name}}\"? This action cannot be undone.",
+      "deleteFailed": "Failed to delete chore. Please try again.",
       "deleteAriaLabel": "Delete {{name}}",
       "deleteTitle": "Delete",
       "editTitle": "Edit",
@@ -210,6 +211,11 @@
       "title": "Manage"
     },
     "editChore": {
+      "dangerZone": "Danger Zone",
+      "deleteBtn": "Delete This Chore",
+      "deleteError": "Failed to delete chore",
+      "deleteHint": "Deleting this chore will permanently remove all associated schedules and plans. This action cannot be undone.",
+      "deleting": "Deleting...",
       "labelCategory": "Category",
       "labelDescription": "Description",
       "labelIcon": "Icon",

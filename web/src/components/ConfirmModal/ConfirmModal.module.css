@@ -1,0 +1,103 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+}
+
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3, 12px);
+}
+
+.iconWell {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--urgent) 15%, transparent);
+  color: var(--urgent);
+}
+
+.iconWell svg {
+  width: 22px;
+  height: 22px;
+}
+
+.message {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--ink);
+  padding-top: 2px;
+}
+
+.error {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--urgent) 12%, transparent);
+  color: var(--urgent);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3, 12px);
+  margin-top: var(--space-2, 8px);
+}
+
+.btnCancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-sunk);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btnCancel:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.btnConfirmDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--urgent, #e53e3e);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--urgent) 30%, transparent);
+  transition: opacity 0.15s ease, transform 0.05s ease;
+}
+
+.btnConfirmDanger:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.btnConfirmDanger:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btnConfirmDanger:disabled,
+.btnCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

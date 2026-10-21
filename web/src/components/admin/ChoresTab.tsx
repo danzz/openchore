@@ -6,6 +6,7 @@ import type { Chore, User } from '../../types';
 import { CategoryHeader, Icon, catFromCategory } from '../../design';
 import CreateChoreWizard from '../CreateChoreWizard/CreateChoreWizard';
 import EditChoreModal from '../EditChoreModal/EditChoreModal';
+import ConfirmModal from '../ConfirmModal/ConfirmModal';
 import { ScheduleManager } from './ScheduleManager';
 import { TriggerManager } from './TriggerManager';
 import { CHORE_CATEGORIES, IconWell } from './pickers';
@@ -17,6 +18,7 @@ export const ChoresTab: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [editingChore, setEditingChore] = useState<Chore | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [choreToDelete, setChoreToDelete] = useState<Chore | null>(null);
 
   const load = useCallback(async () => {
     const [c, u] = await Promise.all([api.chores.list(), api.users.list()]);
@@ -26,9 +28,10 @@ export const ChoresTab: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = async (chore: Chore) => {
-    if (!confirm(t('admin.choresTab.confirmDelete', { name: chore.title }))) return;
-    await api.chores.delete(chore.id);
+  const handleConfirmDelete = async () => {
+    if (!choreToDelete) return;
+    await api.chores.delete(choreToDelete.id);
+    setChoreToDelete(null);
     load();
   };
 
@@ -115,7 +118,10 @@ export const ChoresTab: React.FC = () => {
                       className={`${ui.iconBtn} ${ui.iconBtnDanger}`}
                       title={t('admin.choresTab.deleteTitle')}
                       aria-label={t('admin.choresTab.deleteAriaLabel', { name: chore.title })}
-                      onClick={() => handleDelete(chore)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChoreToDelete(chore);
+                      }}
                     >
                       <Trash2 aria-hidden />
                     </button>
@@ -126,6 +132,19 @@ export const ChoresTab: React.FC = () => {
           </section>
         );
       })}
+
+      {choreToDelete && (
+        <ConfirmModal
+          isOpen={!!choreToDelete}
+          title={t('admin.choresTab.deleteTitle')}
+          message={t('admin.choresTab.confirmDelete', { name: choreToDelete.title })}
+          confirmLabel={t('admin.choresTab.deleteTitle', { defaultValue: '确认删除' })}
+          cancelLabel={t('common.cancel', { defaultValue: '取消' })}
+          isDanger={true}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setChoreToDelete(null)}
+        />
+      )}
     </div>
   );
 };
