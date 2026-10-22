@@ -265,14 +265,18 @@ Requires Go 1.25+ and Node 22+.
 
 ```bash
 make install    # Go modules + npm packages
-make dev        # wipes the DB, seeds from config, runs API :8080 + Vite :5173
+make api        # Run API server :8080 (preserves existing DB data)
+npm --prefix web run dev -- --host 0.0.0.0 # Run Vite :5173 with multi-device network support
+make dev        # Fresh test run: wipes DB, seeds from config, runs API + Vite
 make test       # Go integration tests against a real SQLite DB
 make test-e2e   # Playwright suite, fresh database
 make build      # static binary + production bundle
 ```
 
-`make dev` **deletes the database** on every run — that's how re-seeding works.
-Point `DB_PATH` elsewhere if you care about the data.
+> [!NOTE]
+> `make dev` **deletes the database** on every run for fresh re-seeding. For daily development keeping your data, start `make api` and `npm --prefix web run dev -- --host 0.0.0.0` in separate terminals.
+> 
+> Detailed steps, multi-device debugging, host allowance, and maintenance operations can be found in the **[Development & Maintenance Guide](docs/development-guide.md)**.
 
 The stack is Go with `chi` and pure-Go SQLite (`CGO_ENABLED=0`, WAL, single
 writer), React 18 + TypeScript + Vite on the front, and `golang-migrate` with
@@ -281,6 +285,9 @@ and `httptest`, no mocks.
 
 ## Documentation
 
+- [Development & Maintenance](docs/development-guide.md) — local setup, running modes, Vite host configs, DB migrations, PM2/Nginx operations, FAQ
+- [Mac mini Deployment](docs/mac-mini-deployment.md) — non-Docker native deployment with PM2 & Nginx on macOS
+- [Database Guide](docs/database.md) — dual database support (SQLite / PostgreSQL) and migration
 - [Signing in](docs/authentication.md) — PINs, parents, sessions, OIDC providers, upgrading
 - [AI features](docs/ai.md) — photo review, summaries, read-aloud voices, choosing a model, upgrading
 - [API reference](docs/api.md) — endpoints, auth, and webhook events
